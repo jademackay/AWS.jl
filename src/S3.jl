@@ -437,7 +437,12 @@ function restore_object(env::AWSEnv, bkt::AbstractString, key::AbstractString, d
     ro = RO(:POST, bkt, key)
 
     ro.sub_res=[("restore", "")]
-    ro.body = "<RestoreRequest xmlns=\"http://s3-$(env.region).amazonaws.com/doc/2006-3-01\"><Days>$(days)</Days></RestoreRequest>"
+
+    if env.ep_host != ""
+        ro.body = "<RestoreRequest xmlns=\"http://s3-$(env.ep_host).amazonaws.com/doc/2006-3-01\"><Days>$(days)</Days></RestoreRequest>"
+    else
+        ro.body = "<RestoreRequest xmlns=\"http://s3.amazonaws.com/doc/2006-3-01\"><Days>$(days)</Days></RestoreRequest>"
+    end
 
     s3_resp = do_request(env, ro)
     s3_resp
@@ -628,8 +633,12 @@ function do_http(env::AWSEnv, ro::RO)
 
     push!(all_hdrs, ("Authorization",  "AWS " * env.aws_id * ":" * s_b64))
 
-    url = "https://s3-$(env.region).amazonaws.com" * full_path
-
+    if env.ep_host != ""
+        url = "https://s3-$(env.ep_host).amazonaws.com" * full_path
+    else
+        url = "https://s3.amazonaws.com" * full_path
+    end
+        
     http_options = RequestOptions(headers=all_hdrs, ostream=ro.ostream, request_timeout=env.timeout, auto_content_type=false)
 
     if env.dbg
@@ -656,6 +665,9 @@ function do_http(env::AWSEnv, ro::RO)
 #                   error("Must specify either a body or istream for PUT/POST")
 
         if (ro.verb == :PUT)
+            info("url          ",url)
+            info("senddata     ",senddata)
+            info("http_options ",http_options)
             http_resp = HTTPC.put(url, senddata, http_options)
         else
             http_resp = HTTPC.post(url, senddata, http_options)
